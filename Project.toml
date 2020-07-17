@@ -12,8 +12,9 @@ NDTensors = "23ae76d9-e61a-49c4-8f12-3f1a16adf9cf"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-julia = "1"
 ITensors = "0.1.7"
+NDTensors = "0.1"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
