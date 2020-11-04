@@ -1,14 +1,17 @@
 module ITensorsGrad
 
 using ChainRulesCore
-using BackwardsLinalg
-using FiniteDifferences
 using ITensors
-using LinearAlgebra
 using NDTensors
-using Zygote
+using LinearAlgebra
 
-#include("adjoints.jl")
-include("rrules.jl")
+#using BackwardsLinalg
+#using FiniteDifferences
+#using Zygote
+
+import Base: +
+import ChainRulesCore: rrule
+
+include("chainrules.jl")
 
 end
