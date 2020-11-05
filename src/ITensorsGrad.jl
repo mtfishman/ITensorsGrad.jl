@@ -9,7 +9,7 @@ using LinearAlgebra
 #using FiniteDifferences
 #using Zygote
 
-import Base: +
+import Base: +, adjoint
 import ChainRulesCore: rrule
 
 include("chainrules.jl")
