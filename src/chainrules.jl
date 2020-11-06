@@ -3,28 +3,36 @@
 #
 
 function rrule(::Type{<:Dense}, v::AbstractVector)
+
   function Dense_pullback(ΔΩ)
     return (NO_FIELDS, data(ΔΩ))
   end
+
   return Dense(v), Dense_pullback
 end
 
 function rrule(::Type{<:Diag}, v)
+
   function Diag_pullback(ΔΩ)
     return (NO_FIELDS, data(ΔΩ))
   end
+
   function Diag_pullback(ΔΩ::ITensor)
     return (NO_FIELDS, data(store(ΔΩ)))
   end
+
   return Diag(v), Diag_pullback
 end
 
 # XXX Not sure about this definition
 function rrule(::Type{<:Tensor},
                is::IndexSet, st::TensorStorage)
+
   function Tensor_pullback(ΔΩ)
-    return (NO_FIELDS, DoesNotExist(), itensor(store(ΔΩ), is))
+    #return (NO_FIELDS, DoesNotExist(), itensor(store(ΔΩ), is))
+    return (NO_FIELDS, DoesNotExist(), store(ΔΩ))
   end
+
   return tensor(st, is), Tensor_pullback
 end
 
@@ -47,19 +55,29 @@ function rrule(::Type{<:IndexSet}, x::Vararg{<:Any, N}) where {N}
 end
 
 function rrule(::Type{<:ITensor},
-               is::IndexSet, store::TensorStorage)
-  function ITensor_pullback(ȳ)
-    return (NO_FIELDS, DoesNotExist(), setinds(ȳ, is))
+               is::IndexSet, st::TensorStorage)
+
+  function ITensor_pullback(ΔΩ)
+    #return (NO_FIELDS, DoesNotExist(), setinds(ΔΩ, is))
+    return (NO_FIELDS, DoesNotExist(), ΔΩ.store)
   end
+
   ITensor_pullback(ΔΩ::Base.RefValue) = ITensor_pullback(ΔΩ[])
-  return ITensor(store, is), ITensor_pullback
+
+  return ITensor(st, is), ITensor_pullback
 end
 
 function rrule(::typeof(itensor), A::Array,
                i::Vararg{<:Any, N}) where {N}
-  function itensor_pullback(ΔΩ)
+  is = IndexSet(i...)
+
+  function itensor_pullback(ΔΩ::ITensor)
     return (NO_FIELDS, array(ΔΩ),
             ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+
+  function itensor_pullback(ΔΩ::Union{<:Array, <:TensorStorage})
+    return itensor_pullback(itensor(ΔΩ, is))
   end
 
   function itensor_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T})
@@ -73,6 +91,15 @@ function rrule(::typeof(itensor), A::Array,
 end
 
 function _rrule_itensor(::typeof(*), A, B)
+
+  if A isa Number
+    indsΔΩ = inds(B)
+  elseif B isa Number
+    indsΔΩ = inds(A)
+  else
+    indsΔΩ = noncommoninds(A, B)
+  end
+
   function times_pullback(ΔΩ)
     ∂A = ΔΩ * B
     ∂B = A * ΔΩ
@@ -82,7 +109,8 @@ function _rrule_itensor(::typeof(*), A, B)
   end
 
   function times_pullback(ΔΩ::Base.RefValue)
-    return times_pullback(itensor(ΔΩ[].store))
+    #return times_pullback(itensor(ΔΩ[].store))
+    return times_pullback(itensor(ΔΩ[].store, indsΔΩ))
   end
 
   return A * B, times_pullback
