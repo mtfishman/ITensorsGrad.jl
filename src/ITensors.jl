@@ -25,3 +25,5 @@ adjoint(A::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T <: TensorStor
 
 itensor(A::ITensor) = A
 
+setinds(A::NamedTuple{(:store, :inds), Tuple{ITensorT, Nothing}} where {ITensorT <: ITensor}, is) = setinds(A.store, is)
+

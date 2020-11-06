@@ -4,18 +4,11 @@ using ChainRulesCore
 using ITensors
 using NDTensors
 using LinearAlgebra
-
-# Use for truncated SVD
-#using BackwardsLinalg
-
-# Use for testing
-#using FiniteDifferences
-
-using ITensors: setinds
+using BackwardsLinalg
 
 import Base: +, adjoint
 import ChainRulesCore: rrule
-import ITensors: itensor, dag, prime
+import ITensors: itensor, dag, prime, setinds
 
 include("ITensors.jl")
 include("chainrules.jl")
