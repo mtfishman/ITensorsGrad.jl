@@ -11,6 +11,13 @@ function rrule(::Type{<:Dense}, v::AbstractVector)
   return Dense(v), Dense_pullback
 end
 
+function rrule(::Type{<:Combiner}, x::Vararg{<:Any, N}) where {N}
+  function Combiner_pullback(::Any)
+    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+  return Combiner(x...), Combiner_pullback
+end
+
 function rrule(::Type{<:Diag}, v)
 
   function Diag_pullback(ΔΩ)
@@ -54,12 +61,34 @@ function rrule(::Type{<:IndexSet}, x::Vararg{<:Any, N}) where {N}
   return IndexSet(x...), IndexSet_pullback
 end
 
+function rrule(::typeof(unioninds), x::Vararg{<:Any, N}) where {N}
+  function unioninds_pullback(::Any)
+    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+  return unioninds(x...), unioninds_pullback
+end
+
+function rrule(::typeof(commoninds), x::Vararg{<:Any, N}) where {N}
+  function commoninds_pullback(::Any)
+    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+  return commoninds(x...), commoninds_pullback
+end
+
 function rrule(::Type{<:ITensor},
                is::IndexSet, st::TensorStorage)
 
+  function ITensor_pullback(ΔΩ::TensorStorage)
+    return (NO_FIELDS, DoesNotExist(), ΔΩ)
+  end
+
+  # TODO: maybe return Dense(ΔΩ)?
+  function ITensor_pullback(ΔΩ::AbstractArray)
+    return (NO_FIELDS, DoesNotExist(), ΔΩ)
+  end
+
   function ITensor_pullback(ΔΩ)
-    #return (NO_FIELDS, DoesNotExist(), setinds(ΔΩ, is))
-    return (NO_FIELDS, DoesNotExist(), ΔΩ.store)
+    return ITensor_pullback(ΔΩ.store)
   end
 
   ITensor_pullback(ΔΩ::Base.RefValue) = ITensor_pullback(ΔΩ[])
@@ -89,6 +118,24 @@ function rrule(::typeof(itensor), A::Array,
 
   return itensor(A, i...), itensor_pullback
 end
+
+#function rrule(::typeof(setinds), A::ITensor, is)
+#  Ais = inds(A)
+#
+#  function setinds_pullback(ΔΩ::ITensor)
+#    return (NO_FIELDS, setinds(ΔΩ, Ais), DoesNotExist())
+#  end
+#
+#  setinds_pullback(ΔΩ::TensorStorage) =
+#    setinds_pullback(itensor(ΔΩ, Ais))
+#
+#  setinds_pullback(ΔΩ::NamedTuple) =
+#    setinds_pullback(ΔΩ.store)
+#
+#  setinds_pullback(ΔΩ::Base.RefValue) = setinds_pullback(ΔΩ[])
+#
+#  return setinds(A, is), setinds_pullback
+#end
 
 function _rrule_itensor(::typeof(*), A, B)
 
@@ -140,4 +187,40 @@ function rrule(::typeof(dag), T::ITensor)
   end
   return dag(T), dag_pullback
 end
+
+# TODO: this is needed to overload the Zygote version
+# of adjoint
+@adjoint function Base.adjoint(T::ITensor)
+  indsT = inds(T)
+
+  function adjoint_pullback(ΔΩ::ITensor)
+    return (setinds(ΔΩ, indsT),)
+  end
+
+  function adjoint_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{StoreT, Nothing}} where {StoreT <: TensorStorage})
+    return adjoint_pullback(itensor(ΔΩ.store, indsT))
+  end
+
+  adjoint_pullback(ΔΩ::Base.RefValue) = adjoint_pullback(ΔΩ[])
+
+  return prime(T), adjoint_pullback
+end
+
+# TODO: for some reason this version isn't being used
+# by Zygote
+#function rrule(::typeof(adjoint), T::ITensor)
+#  indsT = inds(T)
+#
+#  function adjoint_pullback(ΔΩ::ITensor)
+#    return (NO_FIELDS, setinds(ΔΩ, indsT))
+#  end
+#
+#  function adjoint_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{StoreT, Nothing}} where {StoreT <: TensorStorage})
+#    return adjoint_pullback(itensor(ΔΩ.store, indsT))
+#  end
+#
+#  adjoint_pullback(ΔΩ::Base.RefValue) = adjoint_pullback(ΔΩ[])
+#
+#  return prime(T), adjoint_pullback
+#end
 
