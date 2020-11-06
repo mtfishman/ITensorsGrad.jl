@@ -1,12 +1,16 @@
 module ITensorsGrad
 
-using BackwardsLinalg
-using FiniteDifferences
+using ChainRulesCore
 using ITensors
-using LinearAlgebra
 using NDTensors
-using Zygote
+using LinearAlgebra
+using BackwardsLinalg
 
-include("adjoints.jl")
+import Base: +, adjoint
+import ChainRulesCore: rrule
+import ITensors: itensor, dag, prime, setinds
+
+include("ITensors.jl")
+include("chainrules.jl")
 
 end
