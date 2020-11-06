@@ -19,7 +19,9 @@ adjoint(A::Base.RefValue) = adjoint(A[])
 
 adjoint(A::NamedTuple{(:store, :inds), Tuple{ITensorT, Nothing}} where {ITensorT <: ITensor}) = prime(A)
 
-prime(A::NamedTuple{(:store, :inds), Tuple{ITensorT, Nothing}} where {ITensorT <: ITensor}) = prime(A.store)
+# XXX Probably the wrong definition
+#prime(A::NamedTuple{(:store, :inds), Tuple{ITensorT, Nothing}} where {ITensorT <: ITensor}) = prime(A.store)
+prime(A::NamedTuple{(:store, :inds), Tuple{ITensorT, Nothing}} where {ITensorT <: ITensor}) = A.store
 
 adjoint(A::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T <: TensorStorage}) = A.store
 

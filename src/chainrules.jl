@@ -2,18 +2,21 @@
 # NDTensors rrules
 #
 
-function rrule(::Type{<:Dense}, data::AbstractVector)
-  function Dense_pullback(ȳ)
-    return (NO_FIELDS, ȳ)
+function rrule(::Type{<:Dense}, v::AbstractVector)
+  function Dense_pullback(ΔΩ)
+    return (NO_FIELDS, data(ΔΩ))
   end
-  return Dense(data), Dense_pullback
+  return Dense(v), Dense_pullback
 end
 
-function rrule(::Type{<:Diag}, data)
-  function Diag_pullback(ȳ)
-    return (NO_FIELDS, ȳ)
+function rrule(::Type{<:Diag}, v)
+  function Diag_pullback(ΔΩ)
+    return (NO_FIELDS, data(ΔΩ))
   end
-  return Diag(data), Diag_pullback
+  function Diag_pullback(ΔΩ::ITensor)
+    return (NO_FIELDS, data(store(ΔΩ)))
+  end
+  return Diag(v), Diag_pullback
 end
 
 # XXX Not sure about this definition
@@ -49,7 +52,7 @@ function rrule(::Type{<:ITensor},
     return (NO_FIELDS, DoesNotExist(), setinds(ȳ, is))
   end
   ITensor_pullback(ΔΩ::Base.RefValue) = ITensor_pullback(ΔΩ[])
-  return itensor(store, is), ITensor_pullback
+  return ITensor(store, is), ITensor_pullback
 end
 
 function rrule(::typeof(itensor), A::Array,
@@ -59,7 +62,9 @@ function rrule(::typeof(itensor), A::Array,
             ntuple(_ -> DoesNotExist(), Val(N))...)
   end
 
-  itensor_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T}) = itensor_pullback(ΔΩ.store)
+  function itensor_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T})
+    return itensor_pullback(ΔΩ.store)
+  end
 
   itensor_pullback(ΔΩ::Base.RefValue) =
     itensor_pullback(ΔΩ[])
@@ -71,11 +76,15 @@ function _rrule_itensor(::typeof(*), A, B)
   function times_pullback(ΔΩ)
     ∂A = ΔΩ * B
     ∂B = A * ΔΩ
+    #@assert hassameinds(A, ∂A)
+    #@assert hassameinds(B, ∂B)
     return (NO_FIELDS, ∂A, ∂B)
   end
+
   function times_pullback(ΔΩ::Base.RefValue)
     return times_pullback(itensor(ΔΩ[].store))
   end
+
   return A * B, times_pullback
 end
 
