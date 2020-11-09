@@ -47,6 +47,13 @@ end
 # ITensors rrules
 #
 
+function rrule(::Type{<:TagSet}, x::Vararg{<:Any, N}) where {N}
+  function TagSet_pullback(::Any)
+    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+  return TagSet(x...), TagSet_pullback
+end
+
 function rrule(::Type{<:Index}, x::Vararg{<:Any, N}) where {N}
   function Index_pullback(::Any)
     return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
@@ -182,9 +189,20 @@ end
 # XXX TODO: This is needed for conj(::NamedTuple) error
 # Maybe instead define overload of conj(::NamedTuple)
 function rrule(::typeof(dag), T::ITensor)
-  function dag_pullback(ȳ::ITensor)
-    return (NO_FIELDS, ȳ)
+  indsT = inds(T)
+
+  function dag_pullback(ΔΩ::ITensor)
+    # XXX TODO: double check this definition
+    return (NO_FIELDS, dag(ΔΩ))
   end
+
+  function dag_pullback(ΔΩ::NamedTuple{(:store, :inds),
+                                       Tuple{T, Nothing}} where {T <: TensorStorage})
+    return dag_pullback(itensor(ΔΩ.store, indsT))
+  end
+
+  dag_pullback(ΔΩ::Base.RefValue) = dag_pullback(ΔΩ[])
+
   return dag(T), dag_pullback
 end
 
