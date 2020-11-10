@@ -11,9 +11,7 @@ using Zygote
           β ^ 2 β ^ 2]
 
   # ITensor
-  function A(β, i = Index(2, "i"))
-    return itensor(T(β), i', dag(i))
-  end
+  A(β, i = Index(2, "i")) = itensor(T(β), i', dag(i))
 
   β = 3.5
 

@@ -5,8 +5,14 @@ function dag(T::ITensor)
   return itensor(store(TT), dag(inds(T)))
 end
 
+const NamedTupleITensor{TensorStorageT, IndexSetT} =
+  NamedTuple{(:store, :inds), Tuple{TensorStorageT, IndexSetT}}
+
 # TODO: these are all weird definitions
-+(A::NamedTuple{(:store, :inds), Tuple{T, Nothing}} where {T}, B::ITensor) = itensor(A.store, inds(B)) + B
+(A::NamedTupleITensor{<:TensorStorage, Nothing} + B::ITensor) =
+  itensor(A.store, inds(B)) + B
+
+(::NamedTupleITensor{Nothing} + B::ITensor) = B
 
 (A::TensorStorage + B::ITensor) = itensor(A, inds(B)) + B
 
