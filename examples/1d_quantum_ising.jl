@@ -2,6 +2,7 @@ using ITensors
 using ITensorsGrad
 using OptimKit
 using Random
+using Zygote
 
 using ITensors: data
 

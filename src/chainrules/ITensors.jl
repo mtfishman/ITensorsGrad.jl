@@ -17,16 +17,16 @@ function rrule(::Type{<:Combiner}, args::Vararg{<:Any, N}) where {N}
   end
   return Combiner(args...), Combiner_pullback
 end
-
+ 
 function rrule(::Type{<:Diag}, v)
 
   function Diag_pullback(ΔΩ)
     return (NO_FIELDS, data(ΔΩ))
   end
 
-  function Diag_pullback(ΔΩ::ITensor)
-    return (NO_FIELDS, data(store(ΔΩ)))
-  end
+  #function Diag_pullback(ΔΩ::ITensor)
+  #  return (NO_FIELDS, data(store(ΔΩ)))
+  #end
 
   return Diag(v), Diag_pullback
 end
@@ -36,7 +36,6 @@ function rrule(::Type{<:Tensor},
                is::IndexSet, st::TensorStorage)
 
   function Tensor_pullback(ΔΩ)
-    #return (NO_FIELDS, DoesNotExist(), itensor(store(ΔΩ), is))
     return (NO_FIELDS, DoesNotExist(), store(ΔΩ))
   end
 
@@ -47,32 +46,47 @@ end
 # ITensors rrules
 #
 
-function rrule(::typeof(svd), T::ITensor, args::Vararg{<:Any, N}) where {N}
+# TODO XXX: this isn't being called by Zygote for some reason
+#function rrule(::typeof(permutedims), T::Tensor, perm; kwargs...)
+#  function permutedims_pullback(ΔΩ)
+#    return (NO_FIELDS, permutedims(ΔΩ, invperm(perm)), DoesNotExist())
+#  end
+#  return permutedims(T, perm; kwargs...), permutedims_pullback
+#end
+
+@adjoint function permutedims(T::Tensor, perm; kwargs...)
   indsT = inds(T)
-  F = svd(T, args...)
-  U, S, V = F.U, F.S, F.V
-  @show U
-  @show S
-  @show V
 
-  function svd_pullback(ΔΩ)
-    @show typeof(ΔΩ)
-
-    Uₜ, Sₜ, Vₜ = tensor.((U, S, V))
-    ΔΩₜ = svd_back(Uₜ, Sₜ, Vₜ, ΔΩ.U, ΔΩ.S, ΔΩ.V)
-
-    @show ΔΩₜ
-    @show indsT
-
-    ΔT = itensor(ΔΩₜ, indsT)
-
-    @show ΔT
-
-    return (ΔT, ntuple(_ -> DoesNotExist(), Val(N))...)
+  function permutedims_pullback(ΔΩ)
+    return (permutedims(ΔΩ, invperm(perm)), nothing)
   end
-  #error("rrule(svd, ::ITensor)")
 
-  return F, svd_pullback
+  function permutedims_pullback(ΔΩ::NamedTupleITensor)
+    return permutedims_pullback(tensor(ΔΩ.store, indsT))
+  end
+
+  return permutedims(T, perm; kwargs...), permutedims_pullback
+end
+
+# XXX TODO: need to implement block sparse version
+function rrule(::typeof(svd), X::Tensor{<:Real, 2})
+  U, S, V, spec = svd(X)
+  function svd_pullback(Ȳ)
+    # `getproperty` on `Composite`s ensures we have no thunks.
+    Uₐ = array(U)
+    Sₐ = convert(Diagonal, S)
+    # Need this to account for Julia SVD convention
+    Vₐ = Matrix(array(V)')
+    F = SVD(Uₐ, parent(Sₐ), Vₐ)
+    ΔU = array(tensor(Ȳ[1].store, size(Uₐ)))
+    ΔS = Ȳ[2] isa Zero ? Zero() : array(tensor(Ȳ[2].store, size(Sₐ)))
+    # Need this to account for Julia SVD convention
+    ΔV = Matrix(array(tensor(Ȳ[3].store, size(Vₐ)))')
+    ∂X = ChainRules.svd_rev(F, ΔU, ΔS, ΔV')
+    ∂T = tensor(Dense(vec(∂X)), inds(X))
+    return (NO_FIELDS, ∂T)
+  end
+  return (U, S, V, spec), svd_pullback
 end
 
 function rrule(::Type{<:TagSet}, args::Vararg{<:Any, N}) where {N}
@@ -135,7 +149,7 @@ function rrule(::Type{<:ITensor},
 
   ITensor_pullback(ΔΩ::Base.RefValue) = ITensor_pullback(ΔΩ[])
 
-  return ITensor(st, is), ITensor_pullback
+  return itensor(st, is), ITensor_pullback
 end
 
 function rrule(::typeof(itensor), A::Array,
@@ -161,27 +175,8 @@ function rrule(::typeof(itensor), A::Array,
   return itensor(A, i...), itensor_pullback
 end
 
-# XXX don't seem to need this, uses ITensor constructor anyway
-#function rrule(::typeof(setinds), A::ITensor, is)
-#  Ais = inds(A)
-#
-#  function setinds_pullback(ΔΩ::ITensor)
-#    return (NO_FIELDS, setinds(ΔΩ, Ais), DoesNotExist())
-#  end
-#
-#  setinds_pullback(ΔΩ::TensorStorage) =
-#    setinds_pullback(itensor(ΔΩ, Ais))
-#
-#  setinds_pullback(ΔΩ::NamedTuple) =
-#    setinds_pullback(ΔΩ.store)
-#
-#  setinds_pullback(ΔΩ::Base.RefValue) = setinds_pullback(ΔΩ[])
-#
-#  return setinds(A, is), setinds_pullback
-#end
 
 function _rrule_itensor(::typeof(*), A, B)
-
   if A isa Number
     indsΔΩ = inds(B)
   elseif B isa Number
@@ -259,4 +254,22 @@ end
 #
 #  return prime(T), adjoint_pullback
 #end
+
+# TODO: this is needed to overload the Zygote version
+# of adjoint
+@adjoint function Base.adjoint(T::ITensor)
+  indsT = inds(T)
+
+  function adjoint_pullback(ΔΩ::ITensor)
+    return (setinds(ΔΩ, indsT),)
+  end
+
+  function adjoint_pullback(ΔΩ::NamedTuple{(:store, :inds), Tuple{StoreT, Nothing}} where {StoreT <: TensorStorage})
+    return adjoint_pullback(itensor(ΔΩ.store, indsT))
+  end
+
+  adjoint_pullback(ΔΩ::Base.RefValue) = adjoint_pullback(ΔΩ[])
+
+  return prime(T), adjoint_pullback
+end
 

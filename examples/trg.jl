@@ -3,37 +3,33 @@ using ITensorsGrad
 using LinearAlgebra
 using Zygote
 
-#T(β) = [exp( β) exp(-β)
-#        exp(-β) exp( β)]
-
-T(β) = [β^2 β^2
-        β^2 β^2]
+T(β) = [exp(β^2) sin(β)^3
+        β^4 cos(β^5)]
 
 # ITensor
 A(β, i = Index(2, "i")) = itensor(T(β), i', dag(i))
 
-β = 0.1
-
-Z(β) = A(β)[1, 1]
-@show Z(β)
-@show Z'(β)
+β = 2.1
 
 function Z(β)
   Tᵦ = T(β)
   U, S, V = svd(Tᵦ)
-  return (U * Diagonal(S) * V')[1, 1]
+  return (U * V')[1, 2]
 end
+
 @show Z(β)
 @show Z'(β)
 
 function Z(β)
   i = Index(2, "i")
   Aᵦ = A(β, i)
-  U, S, V = svd(Aᵦ, (i,))
+  U, S, V = svd(Aᵦ, i')
+
   u = commonind(U, S)
   v = commonind(V, S)
-  return (U * S * V)[1, 1]
+  return (U * δ(u, v) * V)[1, 2]
 end
+
 @show Z(β)
 @show Z'(β)
 

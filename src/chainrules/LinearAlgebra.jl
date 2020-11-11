@@ -1,75 +1,75 @@
 
-struct ZeroAdder end
-Base.:+(a, zero::ZeroAdder) = a
-Base.:+(zero::ZeroAdder, a) = a
-Base.:-(a, zero::ZeroAdder) = a
-Base.:-(zero::ZeroAdder, a) = -a
-Base.:-(zero::ZeroAdder) = zero
-
-mpow2(a::AbstractArray) = a .^ 2
-
-
-function svd_back(U::Tensor, S::Tensor, V::Tensor,
-                  dU, dS, dV; kwargs...)
-  dUₐ = dU isa Zero ? Zero() : array(dU)
-  dSₐ = dS isa Zero ? Zero() : array(dS)
-  dVₐ = dV isa Zero ? Zero() : array(dV)
-  return svd_back(array(U), array(S), array(V),
-                  dUₐ, dSₐ, dVₐ, kwargs...)
-end
-
-"""
-    svd_back(U, S, V, dU, dS, dV)
-
-Adjoint for SVD decomposition.
-
-References:
-    https://j-towns.github.io/papers/svd-derivative.pdf
-    https://giggleliu.github.io/2019/04/02/einsumbp.html
-"""
-function svd_back(U::AbstractArray, S::AbstractArray{T}, V,
-                  dU, dS, dV; η::Real = 1e-40) where T
-  @show typeof(dU)
-  @show typeof(dS)
-  @show typeof(dV)
-
-  all(x -> x isa Zero, (dU, dS, dV)) && return Zero()
-  η = T(η)
-  NS = length(S)
-  S2 = mpow2(S)
-  Sinv = @. S/(S2+η)
-  F = S2' .- S2
-  F ./= (mpow2(F) .+ η)
-
-  res = ZeroAdder()
-  if !(dU isa Nothing)
-    UdU = U'*dU
-    J = F.*(UdU)
-    res += (J+J')*LinearAlgebra.Diagonal(S) + LinearAlgebra.Diagonal(1im*imag(LinearAlgebra.diag(UdU)) .* Sinv)
-  end
-  if !(dV isa Zero)
-    VdV = V'*dV
-    K = F.*(VdV)
-    res += LinearAlgebra.Diagonal(S) * (K+K')
-  end
-  if !(dS isa Zero)
-    res += LinearAlgebra.Diagonal(dS)
-  end
-
-  res = U*res*V'
-
-  if !(dU isa Zero) && size(U, 1) != size(U, 2)
-    res += (dU - U* (U'*dU)) * LinearAlgebra.Diagonal(Sinv) * V'
-  end
-
-  if !(dV isa Zero) && size(V, 1) != size(V, 2)
-    res = res + U * LinearAlgebra.Diagonal(Sinv) * (dV' - (dV'*V)*V')
-  end
-
-  @show res
-
-  return res
-end
+#struct ZeroAdder end
+#Base.:+(a, zero::ZeroAdder) = a
+#Base.:+(zero::ZeroAdder, a) = a
+#Base.:-(a, zero::ZeroAdder) = a
+#Base.:-(zero::ZeroAdder, a) = -a
+#Base.:-(zero::ZeroAdder) = zero
+#
+#mpow2(a::AbstractArray) = a .^ 2
+#
+#
+#function svd_back(U::Tensor, S::Tensor, V::Tensor,
+#                  dU, dS, dV; kwargs...)
+#  dUₐ = dU isa Zero ? Zero() : array(dU)
+#  dSₐ = dS isa Zero ? Zero() : array(dS)
+#  dVₐ = dV isa Zero ? Zero() : array(dV)
+#  return svd_back(array(U), array(S), array(V),
+#                  dUₐ, dSₐ, dVₐ, kwargs...)
+#end
+#
+#"""
+#    svd_back(U, S, V, dU, dS, dV)
+#
+#Adjoint for SVD decomposition.
+#
+#References:
+#    https://j-towns.github.io/papers/svd-derivative.pdf
+#    https://giggleliu.github.io/2019/04/02/einsumbp.html
+#"""
+#function svd_back(U::AbstractArray, S::AbstractArray{T}, V,
+#                  dU, dS, dV; η::Real = 1e-40) where T
+#  @show typeof(dU)
+#  @show typeof(dS)
+#  @show typeof(dV)
+#
+#  all(x -> x isa Zero, (dU, dS, dV)) && return Zero()
+#  η = T(η)
+#  NS = length(S)
+#  S2 = mpow2(S)
+#  Sinv = @. S/(S2+η)
+#  F = S2' .- S2
+#  F ./= (mpow2(F) .+ η)
+#
+#  res = ZeroAdder()
+#  if !(dU isa Nothing)
+#    UdU = U'*dU
+#    J = F.*(UdU)
+#    res += (J+J')*LinearAlgebra.Diagonal(S) + LinearAlgebra.Diagonal(1im*imag(LinearAlgebra.diag(UdU)) .* Sinv)
+#  end
+#  if !(dV isa Zero)
+#    VdV = V'*dV
+#    K = F.*(VdV)
+#    res += LinearAlgebra.Diagonal(S) * (K+K')
+#  end
+#  if !(dS isa Zero)
+#    res += LinearAlgebra.Diagonal(dS)
+#  end
+#
+#  res = U*res*V'
+#
+#  if !(dU isa Zero) && size(U, 1) != size(U, 2)
+#    res += (dU - U* (U'*dU)) * LinearAlgebra.Diagonal(Sinv) * V'
+#  end
+#
+#  if !(dV isa Zero) && size(V, 1) != size(V, 2)
+#    res = res + U * LinearAlgebra.Diagonal(Sinv) * (dV' - (dV'*V)*V')
+#  end
+#
+#  @show res
+#
+#  return res
+#end
 
 #"""
 #		qr(A) -> Tuple{AbstractMatrix, AbstractMatrix}

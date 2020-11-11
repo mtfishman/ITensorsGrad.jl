@@ -1,9 +1,29 @@
 
-# To get around Zygote keyword argument issue
-function dag(T::ITensor)
-  TT = conj(tensor(T))
-  return itensor(store(TT), dag(inds(T)))
+function similar(D::Diag, ::Type{T}) where {T}
+  return Diag(similar(data(D), T))
 end
+
+function convert(::Type{Diagonal}, T::Tensor{<:Any, 2, <:Diag})
+  return Diagonal(data(T))
+end
+
+## function convert(::Type{Diagonal}, T::ITensor{2})
+##   return convert(Diagonal, tensor(T))
+## end
+## 
+## function convert(::Type{Array}, T::ITensor)
+##   return convert(Array, tensor(T))
+## end
+## 
+## function convert(::Type{Tensor}, A::Array)
+##   return Tensor(A, size(A))
+## end
+## 
+## # To get around Zygote keyword argument issue
+## function dag(T::ITensor)
+##   TT = conj(tensor(T))
+##   return itensor(store(TT), dag(inds(T)))
+## end
 
 const NamedTupleITensor{TensorStorageT, IndexSetT} =
   NamedTuple{(:store, :inds), Tuple{TensorStorageT, IndexSetT}}
