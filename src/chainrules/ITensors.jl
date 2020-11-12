@@ -68,6 +68,26 @@ end
   return permutedims(T, perm; kwargs...), permutedims_pullback
 end
 
+# XXX T.inds = ... is not working right now, need to
+# figure out why. Maybe need to overload this?
+#function rrule(::typeof(setproperty!), T::ITensor, field, val)
+#  indsT = inds(T)
+#  @show inds(T)
+#  @show field
+#  @show val
+#  function setproperty!_pullback(ΔΩ)
+#    @show ΔΩ
+#    #error("setproperty!_pullback")
+#    if field == :inds
+#      setproperty!(ΔΩ, field, indsT)
+#    else
+#      error("No setproperty!_pullback for field $field")
+#    end
+#    return (NO_FIELDS, ΔT, DoesNotExist(), DoesNotExist())
+#  end
+#  return setproperty!(T, field, val), setproperty!_pullback
+#end
+
 # XXX TODO: need to implement block sparse version
 function rrule(::typeof(svd), X::Tensor{<:Real, 2})
   U, S, V, spec = svd(X)
@@ -117,11 +137,12 @@ function rrule(::typeof(unioninds), args::Vararg{<:Any, N}) where {N}
   return unioninds(args...), unioninds_pullback
 end
 
-function rrule(::typeof(commoninds), args::Vararg{<:Any, N}) where {N}
+function rrule(::typeof(commoninds), args::Vararg{<:Any, N};
+               kwargs...) where {N}
   function commoninds_pullback(::Any)
     return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
   end
-  return commoninds(args...), commoninds_pullback
+  return commoninds(args...; kwargs...), commoninds_pullback
 end
 
 function rrule(::typeof(uniqueinds), args::Vararg{<:Any, N}) where {N}
@@ -129,6 +150,40 @@ function rrule(::typeof(uniqueinds), args::Vararg{<:Any, N}) where {N}
     return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return uniqueinds(args...), uniqueinds_pullback
+end
+
+function rrule(::typeof(setinds!), ::ITensor, args...)
+  error("Differentiating `setinds!` is currently not available, use out-of-place versions (like `setinds`, `settags`, etc.) instead.")
+end
+
+# XXX: this isn't being called
+#function rrule(::typeof(tr), ::ITensor)
+#  error("Differentiating `tr(::ITensor)` is currently not supported, use contractions with δ instead.")
+#end
+
+@adjoint function tr(A::ITensor; kwargs...)
+  error("Differentiating `tr(::ITensor)` is currently not supported, use contractions with δ instead.")
+end
+
+function rrule(::typeof(setinds),
+               T::ITensor, is)
+  indsT = inds(T)
+
+  function setinds_pullback(ΔΩ)
+    ΔT = setinds(ΔΩ, indsT)
+    return (NO_FIELDS, ΔT, DoesNotExist())
+  end
+
+  setinds_pullback(ΔΩ::Base.RefValue) =
+    setinds_pullback(ΔΩ[])
+
+  function setinds_pullback(ΔΩ::Union{<:Composite,
+                                      <:NamedTupleITensor})
+    ΔT = itensor(ΔΩ.store, indsT)
+    return (NO_FIELDS, ΔT, DoesNotExist())
+  end
+
+  return setinds(T, is), setinds_pullback
 end
 
 function rrule(::Type{<:ITensor},
@@ -185,18 +240,17 @@ function _rrule_itensor(::typeof(*), A, B)
     indsΔΩ = noncommoninds(A, B)
   end
 
-  function times_pullback(ΔΩ)
+  function times_pullback(ΔΩ::ITensor)
     ∂A = ΔΩ * B
     ∂B = A * ΔΩ
-    #@assert hassameinds(A, ∂A)
-    #@assert hassameinds(B, ∂B)
     return (NO_FIELDS, ∂A, ∂B)
   end
 
-  function times_pullback(ΔΩ::Base.RefValue)
-    #return times_pullback(itensor(ΔΩ[].store))
-    return times_pullback(itensor(ΔΩ[].store, indsΔΩ))
-  end
+  times_pullback(ΔΩ::Base.RefValue) =
+    times_pullback(itensor(ΔΩ[].store, indsΔΩ))
+
+  times_pullback(ΔΩ::Composite) =
+    times_pullback(itensor(ΔΩ.store, indsΔΩ))
 
   return A * B, times_pullback
 end
@@ -211,9 +265,21 @@ rrule(::typeof(*), A::ITensor, B::ITensor) =
   _rrule_itensor(*, A, B)
 
 function rrule(::typeof(+), A::ITensor, B::ITensor)
-  function plus_pullback(ΔΩ)
-    return (NO_FIELDS, ΔΩ, ΔΩ)
+  indsA = inds(A)
+  indsB = inds(B)
+
+  function plus_pullback(ΔΩ::ITensor)
+    return (NO_FIELDS, setinds(ΔΩ, indsA), setinds(ΔΩ, indsB))
   end
+
+  function plus_pullback(ΔΩ::NamedTupleITensor)
+    return (NO_FIELDS, itensor(ΔΩ.store, indsA),
+                       itensor(ΔΩ.store, indsB))
+  end
+
+  plus_pullback(ΔΩ::Base.RefValue) =
+    plus_pullback(ΔΩ[])
+
   return A + B, plus_pullback
 end
 

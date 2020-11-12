@@ -11,6 +11,11 @@ A(β, i = Index(2, "i")) = itensor(T(β), i', dag(i))
 
 β = 2.1
 
+#Z(β) = T(β)[1, 1]
+#
+#@show Z(β)
+#@show Z'(β)
+
 function Z(β)
   Tᵦ = T(β)
   U, S, V = svd(Tᵦ)
@@ -24,7 +29,6 @@ function Z(β)
   i = Index(2, "i")
   Aᵦ = A(β, i)
   U, S, V = svd(Aᵦ, i')
-
   u = commonind(U, S)
   v = commonind(V, S)
   return (U * δ(u, v) * V)[1, 2]

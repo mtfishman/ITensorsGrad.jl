@@ -23,31 +23,25 @@ using Zygote
       return (dag(δ(i'', dag(i))) * A(β, i') * A(β, i))[]
     end
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
 
     # XXX this gives the wrong result
     Z(β) = tr(T(β) * T(β))
     Zit(β) = (Aᵦ = A(β); (mapprime(Aᵦ', 2 => 0) * Aᵦ)[])
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
 
     # XXX this gives the wrong result
     Z(β) = tr(T(β) * T(β))
     Zit(β) = (Aᵦ = A(β); (mapprime(prime(Aᵦ), 2 => 0) * Aᵦ)[])
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
 
     # XXX this gives the wrong result
     Z(β) = tr(T(β) * T(β))
     Zit(β) = (Aᵦ = A(β); (swapprime(Aᵦ, 0 => 1) * Aᵦ)[])
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result
-    Z(β) = tr(T(β) * T(β) * T(β))
-    Zit(β) = (Aᵦ = A(β); (mapprime(Aᵦ'', 3 => 0) * Aᵦ' * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
 
     # XXX this gives the wrong result
     Z(β) = tr(T(β) * T(β) * T(β))
@@ -56,13 +50,26 @@ using Zygote
       return (dag(δ(i''', dag(i))) * A(β, i'') * A(β, i') * A(β, i))[]
     end
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
+
+    # XXX this gives the wrong result
+    Z(β) = tr(T(β) * T(β) * T(β))
+    Zit(β) = (Aᵦ = A(β); (mapprime(Aᵦ'', 3 => 0) * Aᵦ' * Aᵦ)[])
+    @test Z(β) ≈ Zit(β)
+    @test Z'(β) ≈ Zit'(β)
 
     # XXX this gives the wrong result, the version with ' works
     Z(β) = tr(T(β) * T(β) * T(β))
     Zit(β) = (Aᵦ = A(β); (mapprime(prime(Aᵦ, 2), 3 => 0) * prime(Aᵦ) * Aᵦ)[])
     @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
+    @test Z'(β) ≈ Zit'(β)
+
+
+    #
+    # XXX: adjoint of tr(::ITensor) not working,
+    # results in `nothing`. Maybe it is too complicated
+    # for Zygote.
+    #
 
     Z(β) = tr(T(β) * T(β))
     Zit(β) = (Aᵦ = A(β); tr(Aᵦ' * Aᵦ; plev = 0 => 2))
@@ -75,13 +82,13 @@ using Zygote
     @test_broken Z'(β) ≈ Zit'(β)
 
     Z(β) = tr(T(β) * T(β))
-    Zit(β) = (Aᵦ = A(β); tr(Aᵦ' * Aᵦ, 0 => 2))
-    @test_broken Z(β) ≈ Zit(β)
+    Zit(β) = (Aᵦ = A(β); tr(Aᵦ' * Aᵦ; plev = 0 => 2))
+    @test Z(β) ≈ Zit(β)
     @test_broken Z'(β) ≈ Zit'(β)
 
     Z(β) = tr(T(β) * T(β))
-    Zit(β) = (Aᵦ = A(β); tr(prime(Aᵦ) * Aᵦ, 0 => 2))
-    @test_broken Z(β) ≈ Zit(β)
+    Zit(β) = (Aᵦ = A(β); tr(prime(Aᵦ) * Aᵦ; plev = 0 => 2))
+    @test Z(β) ≈ Zit(β)
     @test_broken Z'(β) ≈ Zit'(β)
 
     Z(β) = tr(T(β) * T(β))
@@ -197,11 +204,6 @@ using Zygote
 
     Z(β) = (2 * T(β))[1, 1]
     Zit(β) = (2 * A(β))[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z(β) = (T(β) + 2 * T(β))[1, 1]
-    Zit(β) = (Aᵦ = A(β); (Aᵦ + 2 * Aᵦ)[1, 1])
     @test Z(β) ≈ Zit(β)
     @test Z'(β) ≈ Zit'(β)
 
