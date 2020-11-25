@@ -13,7 +13,7 @@ end
 
 function rrule(::Type{<:Combiner}, args::Vararg{<:Any, N}) where {N}
   function Combiner_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return Combiner(args...), Combiner_pullback
 end
@@ -42,11 +42,22 @@ function rrule(::Type{<:Tensor},
   return tensor(st, is), Tensor_pullback
 end
 
+function rrule(::typeof(tensor), T::ITensor)
+  indsT = inds(T)
+
+  function tensor_pullback(ΔΩ)
+    return (NO_FIELDS, setinds(itensor(ΔΩ), indsT))
+  end
+
+  return tensor(T), tensor_pullback
+end
+
 #
 # ITensors rrules
 #
 
 # TODO XXX: this isn't being called by Zygote for some reason
+# Probably related to: https://github.com/FluxML/Zygote.jl/issues/811
 #function rrule(::typeof(permutedims), T::Tensor, perm; kwargs...)
 #  function permutedims_pullback(ΔΩ)
 #    return (NO_FIELDS, permutedims(ΔΩ, invperm(perm)), DoesNotExist())
@@ -88,51 +99,154 @@ end
 #  return setproperty!(T, field, val), setproperty!_pullback
 #end
 
+function rrule(::typeof(getindex), T::ITensor{0})
+  indsT = inds(T)
+
+  function getindex_pullback(ΔΩ::ITensor)
+    return NO_FIELDS, setinds(ΔΩ, indsT)
+  end
+
+  getindex_pullback(ΔΩ::Number) =
+    getindex_pullback(ITensor(ΔΩ, indsT))
+
+  return T[], getindex_pullback
+end
+
+#dense(T::TensorT) where {TensorT<:DiagTensor}
+
+function rrule(::typeof(dense), T::DiagTensor)
+  indsT = inds(T)
+
+  function dense_pullback(ΔΩ::Tensor)
+    ΔT = Tensor(Diag(diag(array(ΔΩ))), indsT)
+    return NO_FIELDS, ΔT
+  end
+
+  dense_pullback(ΔΩ::TensorStorage) =
+    dense_pullback(tensor(ΔΩ, indsT))
+
+  dense_pullback(ΔΩ::Composite) =
+    dense_pullback(ΔΩ.store)
+
+  return dense(T), dense_pullback
+end
+
 # XXX TODO: need to implement block sparse version
-function rrule(::typeof(svd), X::Tensor{<:Real, 2})
-  U, S, V, spec = svd(X)
-  function svd_pullback(Ȳ)
+function rrule(::typeof(svd), X::Tensor{<:Real, 2}; kwargs...)
+  U, S, V, spec = svd(X; kwargs...)
+  function svd_pullback(ΔΩ)
     # `getproperty` on `Composite`s ensures we have no thunks.
     Uₐ = array(U)
     Sₐ = convert(Diagonal, S)
     # Need this to account for Julia SVD convention
-    Vₐ = Matrix(array(V)')
-    F = SVD(Uₐ, parent(Sₐ), Vₐ)
-    ΔU = array(tensor(Ȳ[1].store, size(Uₐ)))
-    ΔS = Ȳ[2] isa Zero ? Zero() : array(tensor(Ȳ[2].store, size(Sₐ)))
+    Vtₐ = Matrix(array(V)')
+    F = SVD(Uₐ, parent(Sₐ), Vtₐ)
+    ΔU = array(tensor(ΔΩ[1].store, size(Uₐ)))
+    # XXX TODO: should this be just a vector?
+    #ΔS = ΔΩ[2] isa Zero ? Zero() : array(tensor(ΔΩ[2].store, size(Sₐ)))
+    ΔS = ΔΩ[2] isa Zero ? Zero() : data(ΔΩ[2].store)
     # Need this to account for Julia SVD convention
-    ΔV = Matrix(array(tensor(Ȳ[3].store, size(Vₐ)))')
-    ∂X = ChainRules.svd_rev(F, ΔU, ΔS, ΔV')
+    ΔVt = Matrix(array(tensor(ΔΩ[3].store, size(Vtₐ)))')
+
+    #@show size(F.U)
+    #@show size(F.S)
+    #@show size(F.Vt)
+    #@show size(ΔU)
+    #@show size(ΔS)
+    #@show size(ΔVt)
+
+    ∂X = ChainRules.svd_rev(F, ΔU, ΔS, ΔVt)
     ∂T = tensor(Dense(vec(∂X)), inds(X))
     return (NO_FIELDS, ∂T)
   end
   return (U, S, V, spec), svd_pullback
 end
 
+#@adjoint function LinearAlgebra.eigen(A::LinearAlgebra.RealHermSymComplexHerm)
+#  dU = eigen(A)
+function _eigen_pullback(dU::Eigen, Δd, ΔU)
+  d, U = dU
+  if ΔU === nothing
+    P = Diagonal(Δd)
+  else
+    F = inv.(d' .- d)
+    P = F .* (U' * ΔU)
+
+    @show typeof(P)
+    @show size(P)
+    @show typeof(Δd)
+    @show size(Δd)
+
+    if Δd === nothing
+      P[diagind(P)] .= 0
+    else
+      P[diagind(P)] = Δd
+    end
+  end
+  return U * P * U'
+end
+
+
+#function rrule(T::Type{<:Hermitian}, T::Tensor{<:Any, 2})
+#    Ω = T(A, uplo)
+#    function Hermitian_pullback(ΔΩ)
+#        return (NO_FIELDS, _symherm_back(T, ΔΩ, Ω.uplo), DoesNotExist())
+#    end
+#    return Ω, HermOrSym_pullback
+#end
+
+# XXX TODO: need to implement block sparse version
+@adjoint function eigen(T::Union{<:TensorT, Hermitian{ElT, <:TensorT}};
+                        kwargs...) where {ElT <: Real, TensorT <: Tensor{ElT, 2}}
+  indsT = inds(T)
+  D, U, spec = eigen(T; kwargs...)
+  function eigen_pullback(ΔΩ)
+    @show typeof(ΔΩ)
+    #error("In eigen_pullback")
+    Dₐ = convert(Diagonal, D)
+    Uₐ = array(U)
+    F = Eigen(parent(Dₐ), Uₐ)
+    #ΔD = ΔΩ[2] isa Zero ? Zero() : array(tensor(ΔΩ[1].store, size(Dₐ)))
+    ΔD = ΔΩ[2] isa Zero ? Zero() : data(ΔΩ[1].store)
+    ΔU = array(tensor(ΔΩ[2].store, size(Uₐ)))
+    ∂X = _eigen_pullback(F, ΔD, ΔU)
+    ∂T = tensor(Dense(vec(∂X)), indsT)
+    return (NO_FIELDS, ∂T)
+  end
+  return (D, U, spec), eigen_pullback
+end
+
 function rrule(::Type{<:TagSet}, args::Vararg{<:Any, N}) where {N}
   function TagSet_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return TagSet(args...), TagSet_pullback
 end
 
 function rrule(::Type{<:Index}, args::Vararg{<:Any, N}) where {N}
   function Index_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return Index(args...), Index_pullback
 end
 
+function rrule(::typeof(addtags), ts::TagSet, tsadd)
+  function addtags_pullback(::Any)
+    return (NO_FIELDS, (DoesNotExist(), DoesNotExist()))
+  end
+  return addtags(ts, tsadd), addtags_pullback
+end
+
 function rrule(::Type{<:IndexSet}, args::Vararg{<:Any, N}) where {N}
   function IndexSet_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return IndexSet(args...), IndexSet_pullback
 end
 
 function rrule(::typeof(unioninds), args::Vararg{<:Any, N}) where {N}
   function unioninds_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return unioninds(args...), unioninds_pullback
 end
@@ -140,16 +254,25 @@ end
 function rrule(::typeof(commoninds), args::Vararg{<:Any, N};
                kwargs...) where {N}
   function commoninds_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return commoninds(args...; kwargs...), commoninds_pullback
 end
 
 function rrule(::typeof(uniqueinds), args::Vararg{<:Any, N}) where {N}
   function uniqueinds_pullback(::Any)
-    return (DoesNotExist(), ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
   end
   return uniqueinds(args...), uniqueinds_pullback
+end
+
+function rrule(::typeof(replaceinds), is::IndexSet,
+               args::Vararg{<:Any, N}) where {N}
+  function replaceinds_pullback(::Any)
+    return (NO_FIELDS, DoesNotExist(),
+            ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+  return replaceinds(is, args...), replaceinds_pullback
 end
 
 function rrule(::typeof(setinds!), ::ITensor, args...)
@@ -157,12 +280,34 @@ function rrule(::typeof(setinds!), ::ITensor, args...)
 end
 
 # XXX: this isn't being called
+# Maybe related to https://github.com/FluxML/Zygote.jl/issues/811
 #function rrule(::typeof(tr), ::ITensor)
 #  error("Differentiating `tr(::ITensor)` is currently not supported, use contractions with δ instead.")
 #end
 
 @adjoint function tr(A::ITensor; kwargs...)
   error("Differentiating `tr(::ITensor)` is currently not supported, use contractions with δ instead.")
+end
+
+function rrule(::typeof(replaceind),
+               T::ITensor, args::Vararg{<:Any, N}) where {N}
+  indsT = inds(T)
+
+  function replaceind_pullback(ΔΩ)
+    ΔT = setinds(ΔΩ, indsT)
+    return (NO_FIELDS, ΔT, ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+
+  replaceind_pullback(ΔΩ::Base.RefValue) =
+    replaceind_pullback(ΔΩ[])
+
+  function replaceind_pullback(ΔΩ::Union{<:Composite,
+                                         <:NamedTupleITensor})
+    ΔT = itensor(ΔΩ.store, indsT)
+    return (NO_FIELDS, ΔT, ntuple(_ -> DoesNotExist(), Val(N))...)
+  end
+
+  return replaceind(T, args...), replaceind_pullback
 end
 
 function rrule(::typeof(setinds),
@@ -230,7 +375,6 @@ function rrule(::typeof(itensor), A::Array,
   return itensor(A, i...), itensor_pullback
 end
 
-
 function _rrule_itensor(::typeof(*), A, B)
   if A isa Number
     indsΔΩ = inds(B)
@@ -246,11 +390,12 @@ function _rrule_itensor(::typeof(*), A, B)
     return (NO_FIELDS, ∂A, ∂B)
   end
 
-  times_pullback(ΔΩ::Base.RefValue) =
-    times_pullback(itensor(ΔΩ[].store, indsΔΩ))
+  times_pullback(ΔΩ::Base.RefValue) = times_pullback(ΔΩ[])
 
-  times_pullback(ΔΩ::Composite) =
-    times_pullback(itensor(ΔΩ.store, indsΔΩ))
+  function times_pullback(ΔΩ::Composite)
+    @show ΔΩ
+    return times_pullback(itensor(ΔΩ.store, indsΔΩ))
+  end
 
   return A * B, times_pullback
 end

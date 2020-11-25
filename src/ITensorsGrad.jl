@@ -11,7 +11,7 @@ using ZygoteRules # This is needed for adjoint (ITensor priming)
 
 using ITensors: setinds!
 
-import Base: +, adjoint, convert, similar
+import Base: +, adjoint, convert, similar, real
 import ChainRulesCore: rrule
 import ITensors: itensor, ITensor, dag, prime, setinds
 

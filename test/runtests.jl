@@ -212,37 +212,5 @@ using Zygote
     @test Z(β) ≈ Zit(β)
     @test Z'(β) ≈ Zit'(β)
   end
-
-  @testset "SVD" begin
-    function Z(β)
-      Tᵦ = T(β)
-      U, S, V = svd(Tᵦ)
-      return (U * V')[1, 2]
-    end
-    function Zit(β)
-      i = Index(2, "i")
-      Aᵦ = A(β, i)
-      U, S, V = svd(Aᵦ, i')
-      u = commonind(U, S)
-      v = commonind(V, S)
-      return (U * δ(u, v) * V)[1, 2]
-    end
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    function Z(β)
-      Tᵦ = T(β)
-      U, S, V = svd(Tᵦ)
-      return tr(U * Diagonal(S) * V')
-    end
-    function Zit(β)
-      i = Index(2, "i")
-      Aᵦ = A(β, i)
-      U, S, V = svd(Aᵦ, i')
-      return (U * S * V * δ(inds(Aᵦ)))[]
-    end
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-  end
 end
 

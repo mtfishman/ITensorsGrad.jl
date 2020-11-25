@@ -1,39 +1,39 @@
 using ITensors
 using ITensorsGrad
-using LinearAlgebra
 using Zygote
 
-T(β) = [exp(β^2) sin(β)^3
-        β^4 cos(β^5)]
+examples_src_dir = joinpath(ITensors.examples_dir(), "src")
+include(joinpath(examples_src_dir, "trg.jl"))
+include(joinpath(examples_src_dir, "2d_classical_ising.jl"))
 
-# ITensor
-A(β, i = Index(2, "i")) = itensor(T(β), i', dag(i))
-
-β = 2.1
-
-#Z(β) = T(β)[1, 1]
-#
-#@show Z(β)
-#@show Z'(β)
-
-function Z(β)
-  Tᵦ = T(β)
-  U, S, V = svd(Tᵦ)
-  return (U * V')[1, 2]
+# Compute the partition function per site κᴺ = Z
+# using TRG as a function of inverse temperature β
+# and field h
+function κ(β, h; χmax = 5, nsteps = 12)
+  d = 2
+  s = Index(d)
+  sₕ = addtags(s, "horiz")
+  sᵥ = addtags(s, "vert")
+  Tᵦ = ising_mpo(sₕ, sᵥ, β, h)
+  κᵦ, T = trg(Tᵦ; χmax = χmax, nsteps = nsteps)
+  return κᵦ
 end
 
-@show Z(β)
-@show Z'(β)
+β = 1.1 * βc
+h = 0.0
 
-function Z(β)
-  i = Index(2, "i")
-  Aᵦ = A(β, i)
-  U, S, V = svd(Aᵦ, i')
-  u = commonind(U, S)
-  v = commonind(V, S)
-  return (U * δ(u, v) * V)[1, 2]
-end
+κᵦ = κ(β, h)
 
-@show Z(β)
-@show Z'(β)
+κₑₓ = exp(-β * ising_free_energy(β))
+@show κᵦ, κₑₓ
+@show abs(κᵦ - κₑₓ)
+
+∂ₕκᵦ = gradient(h -> κ(β, h), h)[1]
+
+@show ∂ₕκᵦ
+
+mᵦ = -∂ₕκᵦ / β
+
+mₑₓ = ising_magnetization(β)
+@show mᵦ, mₑₓ
 
