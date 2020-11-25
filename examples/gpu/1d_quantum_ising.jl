@@ -1,14 +1,17 @@
 using ITensors
 using ITensorsGrad
+using ITensorsGPU
 using OptimKit
 using Random
 using Zygote
 
 using ITensors: data
 
+gpu = cu
+
 Random.seed!(1234)
 
-N = 50
+N = 4
 s = siteinds("S=1/2", N)
 
 h = -1.0
@@ -20,10 +23,10 @@ end
 for n in 1:N
   a .+= h, "Sx", n
 end
-H = MPO(a, s)
+H = gpu(MPO(a, s))
 
-χmax = 100
-ψ₀ = randomMPS(s, χmax)
+χmax = 4
+ψ₀ = gpu(randomMPS(s, χmax))
 
 # Versions that are just vectors
 H̃ = data(H)
@@ -32,13 +35,13 @@ H̃ = data(H)
 function E(H, ψ)
   N = length(ψ)
   ψdag = prime.(dag.(ψ))
-  e = ITensor(1)
-  for n in 1:N
+  e = ψ[1] * H[1] * ψdag[1]
+  for n in 2:N
     e = e * ψ[n] * H[n] * ψdag[n]
   end
-  norm = ITensor(1)
   ψdag = noprime.(ψdag, "Site")
-  for n in 1:N
+  norm = ψ[1] * ψdag[1]
+  for n in 2:N
     norm = norm * ψ[n] * ψdag[n]
   end
   return e[] / norm[]

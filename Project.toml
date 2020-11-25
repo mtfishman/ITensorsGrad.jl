@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [deps]
 BackwardsLinalg = "442b4e1a-8b9d-11e9-03b0-f14b31742153"
+ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
