@@ -4,7 +4,6 @@ authors = ["Matthew Fishman <mfishman@flatironinstitute.org> and contributors"]
 version = "0.1.0"
 
 [deps]
-BackwardsLinalg = "442b4e1a-8b9d-11e9-03b0-f14b31742153"
 ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
@@ -16,11 +15,9 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
 
 [compat]
-BackwardsLinalg = "0.1"
-FiniteDifferences = "0.11"
-ITensors = "0.1.25"
-NDTensors = "0.1"
-Zygote = "0.5"
+FiniteDifferences = "0.12"
+ITensors = "0.2"
+Zygote = "0.6"
 julia = "1"
 
 [extras]

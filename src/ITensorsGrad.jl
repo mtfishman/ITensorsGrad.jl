@@ -4,8 +4,8 @@ module ITensorsGrad
 using ChainRules
 using ChainRulesCore
 using ITensors
+using ITensors.NDTensors
 using LinearAlgebra
-using NDTensors
 using Reexport
 using ZygoteRules # This is needed for adjoint (ITensor priming)
 

@@ -16,22 +16,22 @@ itensor(A::Diagonal, is) = itensor(Matrix(A), is)
 
 ITensor(st::Combiner, is) = itensor(st, is)
 
-function similar(T::Tensor{<:Any, N}, ::Type{ITensor{N}}) where {N}
+function similar(T::Tensor{<:Any}, ::Type{ITensor})
   T̃ = similar(T)
   return itensor(T̃)
 end
 
-(a::Float64 + b::ITensor{0}) = ITensor(a) + b
+(a::Float64 + b::ITensor) = ITensor(a) + b
 
-function real(T::ITensor)
-  dataᵣ = real(store(T))
-  if store(T) isa Dense
-    Tᵣ = itensor(Dense(dataᵣ), inds(T))
-  else
-    error("real(::ITensor) only implemented for Dense storage right now")
-  end
-  return Tᵣ
-end
+#function real(T::ITensor)
+#  dataᵣ = real(store(T))
+#  if store(T) isa Dense
+#    Tᵣ = itensor(Dense(dataᵣ), inds(T))
+#  else
+#    error("real(::ITensor) only implemented for Dense storage right now")
+#  end
+#  return Tᵣ
+#end
 
 #function similar(T::Tensor{<:Any, N, <:Dense},
 #                 ::Type{ITensor{N}}) where {N}
