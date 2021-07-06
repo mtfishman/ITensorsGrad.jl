@@ -13,7 +13,7 @@ end
 
 function rrule(::Type{<:Combiner}, args::Vararg{<:Any, N}) where {N}
   function Combiner_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return Combiner(args...), Combiner_pullback
 end
@@ -34,24 +34,58 @@ end
 # XXX Not sure about this definition
 function rrule(::Type{<:Tensor},
                is::IndexSet, st::TensorStorage)
-
   function Tensor_pullback(ΔΩ)
-    return (NO_FIELDS, DoesNotExist(), store(ΔΩ))
+    return (NO_FIELDS, NoTangent(), store(ΔΩ))
   end
-
   return tensor(st, is), Tensor_pullback
+end
+
+function rrule(T::Type{<:Tensor}, as::NDTensors.AllowAlias, st::TensorStorage, is)
+  function Tensor_pullback(ΔΩ)
+    return (NO_FIELDS, NoTangent(), storage(ΔΩ), NoTangent())
+  end
+  return Tensor(as, st, is), Tensor_pullback
 end
 
 function rrule(::typeof(tensor), T::ITensor)
   indsT = inds(T)
-
   function tensor_pullback(ΔΩ)
-    return (NO_FIELDS, setinds(itensor(ΔΩ), indsT))
+    return NO_FIELDS, itensor(ΔΩ.storage, indsT)
   end
-
   return tensor(T), tensor_pullback
 end
 
+function rrule(::Type{ITensor}, as::ITensors.AliasStyle, T::Tensor)
+  indsT = inds(T)
+  function ITensor_pullback(ΔΩ)
+    return (NO_FIELDS, setinds(Tensor(as, ΔΩ), indsT))
+  end
+  return ITensor(as, T), ITensor_pullback
+end
+
+function rrule(::Type{ITensor}, T::Tensor)
+  indsT = inds(T)
+  function ITensor_pullback(ΔΩ)
+    return (NO_FIELDS, setinds(Tensor(ΔΩ), indsT))
+  end
+  return ITensor(T), ITensor_pullback
+end
+
+function rrule(::Type{ITensor}, as::ITensors.AliasStyle, st::TensorStorage, is)
+  function ITensor_pullback(ΔΩ)
+    return (NO_FIELDS, NoTangent(), storage(ΔΩ), NoTangent())
+  end
+  return ITensor(as, st, is), ITensor_pullback
+end
+
+function rrule(::Type{ITensor}, args...)
+  @show args
+  error("In rrule for ITensor, not implemented yet.")
+  function ITensor_pullback(ΔΩ)
+    return (NO_FIELDS, NoTangent(), storage(ΔΩ), NoTangent())
+  end
+  return ITensor(as, st, is), ITensor_pullback
+end
 #
 # ITensors rrules
 #
@@ -60,7 +94,7 @@ end
 # Probably related to: https://github.com/FluxML/Zygote.jl/issues/811
 #function rrule(::typeof(permutedims), T::Tensor, perm; kwargs...)
 #  function permutedims_pullback(ΔΩ)
-#    return (NO_FIELDS, permutedims(ΔΩ, invperm(perm)), DoesNotExist())
+#    return (NO_FIELDS, permutedims(ΔΩ, invperm(perm)), NoTangent())
 #  end
 #  return permutedims(T, perm; kwargs...), permutedims_pullback
 #end
@@ -94,12 +128,13 @@ end
 #    else
 #      error("No setproperty!_pullback for field $field")
 #    end
-#    return (NO_FIELDS, ΔT, DoesNotExist(), DoesNotExist())
+#    return (NO_FIELDS, ΔT, NoTangent(), NoTangent())
 #  end
 #  return setproperty!(T, field, val), setproperty!_pullback
 #end
 
-function rrule(::typeof(getindex), T::ITensor{0})
+# For order-0 ITensor
+function rrule(::typeof(getindex), T::ITensor)
   indsT = inds(T)
 
   function getindex_pullback(ΔΩ::ITensor)
@@ -125,7 +160,7 @@ function rrule(::typeof(dense), T::DiagTensor)
   dense_pullback(ΔΩ::TensorStorage) =
     dense_pullback(tensor(ΔΩ, indsT))
 
-  dense_pullback(ΔΩ::Composite) =
+  dense_pullback(ΔΩ::Tangent) =
     dense_pullback(ΔΩ.store)
 
   return dense(T), dense_pullback
@@ -135,7 +170,7 @@ end
 function rrule(::typeof(svd), X::Tensor{<:Real, 2}; kwargs...)
   U, S, V, spec = svd(X; kwargs...)
   function svd_pullback(ΔΩ)
-    # `getproperty` on `Composite`s ensures we have no thunks.
+    # `getproperty` on `Tangent`s ensures we have no thunks.
     Uₐ = array(U)
     Sₐ = convert(Diagonal, S)
     # Need this to account for Julia SVD convention
@@ -190,7 +225,7 @@ end
 #function rrule(T::Type{<:Hermitian}, T::Tensor{<:Any, 2})
 #    Ω = T(A, uplo)
 #    function Hermitian_pullback(ΔΩ)
-#        return (NO_FIELDS, _symherm_back(T, ΔΩ, Ω.uplo), DoesNotExist())
+#        return (NO_FIELDS, _symherm_back(T, ΔΩ, Ω.uplo), NoTangent())
 #    end
 #    return Ω, HermOrSym_pullback
 #end
@@ -218,35 +253,35 @@ end
 
 function rrule(::Type{<:TagSet}, args::Vararg{<:Any, N}) where {N}
   function TagSet_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return TagSet(args...), TagSet_pullback
 end
 
 function rrule(::Type{<:Index}, args::Vararg{<:Any, N}) where {N}
   function Index_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return Index(args...), Index_pullback
 end
 
 function rrule(::typeof(addtags), ts::TagSet, tsadd)
   function addtags_pullback(::Any)
-    return (NO_FIELDS, (DoesNotExist(), DoesNotExist()))
+    return (NO_FIELDS, (NoTangent(), NoTangent()))
   end
   return addtags(ts, tsadd), addtags_pullback
 end
 
 function rrule(::Type{<:IndexSet}, args::Vararg{<:Any, N}) where {N}
   function IndexSet_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return IndexSet(args...), IndexSet_pullback
 end
 
 function rrule(::typeof(unioninds), args::Vararg{<:Any, N}) where {N}
   function unioninds_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return unioninds(args...), unioninds_pullback
 end
@@ -254,14 +289,14 @@ end
 function rrule(::typeof(commoninds), args::Vararg{<:Any, N};
                kwargs...) where {N}
   function commoninds_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return commoninds(args...; kwargs...), commoninds_pullback
 end
 
 function rrule(::typeof(uniqueinds), args::Vararg{<:Any, N}) where {N}
   function uniqueinds_pullback(::Any)
-    return (NO_FIELDS, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ntuple(_ -> NoTangent(), Val(N))...)
   end
   return uniqueinds(args...), uniqueinds_pullback
 end
@@ -269,8 +304,8 @@ end
 function rrule(::typeof(replaceinds), is::IndexSet,
                args::Vararg{<:Any, N}) where {N}
   function replaceinds_pullback(::Any)
-    return (NO_FIELDS, DoesNotExist(),
-            ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, NoTangent(),
+            ntuple(_ -> NoTangent(), Val(N))...)
   end
   return replaceinds(is, args...), replaceinds_pullback
 end
@@ -295,16 +330,16 @@ function rrule(::typeof(replaceind),
 
   function replaceind_pullback(ΔΩ)
     ΔT = setinds(ΔΩ, indsT)
-    return (NO_FIELDS, ΔT, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ΔT, ntuple(_ -> NoTangent(), Val(N))...)
   end
 
   replaceind_pullback(ΔΩ::Base.RefValue) =
     replaceind_pullback(ΔΩ[])
 
-  function replaceind_pullback(ΔΩ::Union{<:Composite,
+  function replaceind_pullback(ΔΩ::Union{<:Tangent,
                                          <:NamedTupleITensor})
     ΔT = itensor(ΔΩ.store, indsT)
-    return (NO_FIELDS, ΔT, ntuple(_ -> DoesNotExist(), Val(N))...)
+    return (NO_FIELDS, ΔT, ntuple(_ -> NoTangent(), Val(N))...)
   end
 
   return replaceind(T, args...), replaceind_pullback
@@ -316,16 +351,16 @@ function rrule(::typeof(setinds),
 
   function setinds_pullback(ΔΩ)
     ΔT = setinds(ΔΩ, indsT)
-    return (NO_FIELDS, ΔT, DoesNotExist())
+    return (NO_FIELDS, ΔT, NoTangent())
   end
 
   setinds_pullback(ΔΩ::Base.RefValue) =
     setinds_pullback(ΔΩ[])
 
-  function setinds_pullback(ΔΩ::Union{<:Composite,
+  function setinds_pullback(ΔΩ::Union{<:Tangent,
                                       <:NamedTupleITensor})
     ΔT = itensor(ΔΩ.store, indsT)
-    return (NO_FIELDS, ΔT, DoesNotExist())
+    return (NO_FIELDS, ΔT, NoTangent())
   end
 
   return setinds(T, is), setinds_pullback
@@ -335,12 +370,12 @@ function rrule(::Type{<:ITensor},
                is::IndexSet, st::TensorStorage)
 
   function ITensor_pullback(ΔΩ::TensorStorage)
-    return (NO_FIELDS, DoesNotExist(), ΔΩ)
+    return (NO_FIELDS, NoTangent(), ΔΩ)
   end
 
   # TODO: maybe return Dense(ΔΩ)?
   function ITensor_pullback(ΔΩ::AbstractArray)
-    return (NO_FIELDS, DoesNotExist(), ΔΩ)
+    return (NO_FIELDS, NoTangent(), ΔΩ)
   end
 
   function ITensor_pullback(ΔΩ)
@@ -358,7 +393,7 @@ function rrule(::typeof(itensor), A::Array,
 
   function itensor_pullback(ΔΩ::ITensor)
     return (NO_FIELDS, array(ΔΩ),
-            ntuple(_ -> DoesNotExist(), Val(N))...)
+            ntuple(_ -> NoTangent(), Val(N))...)
   end
 
   function itensor_pullback(ΔΩ::Union{<:Array, <:TensorStorage})
@@ -373,6 +408,11 @@ function rrule(::typeof(itensor), A::Array,
     itensor_pullback(ΔΩ[])
 
   return itensor(A, i...), itensor_pullback
+end
+
+function rrule(::typeof(itensor), args...)
+  @show args
+  error("rrule for itensor, not implemented yet")
 end
 
 function _rrule_itensor(::typeof(*), A, B)
@@ -392,7 +432,7 @@ function _rrule_itensor(::typeof(*), A, B)
 
   times_pullback(ΔΩ::Base.RefValue) = times_pullback(ΔΩ[])
 
-  function times_pullback(ΔΩ::Composite)
+  function times_pullback(ΔΩ::Tangent)
     @show ΔΩ
     return times_pullback(itensor(ΔΩ.store, indsΔΩ))
   end
