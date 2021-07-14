@@ -32,11 +32,11 @@ H̃ = data(H)
 function E(H, ψ)
   N = length(ψ)
   ψdag = prime.(dag.(ψ))
-  e = ITensor(1)
+  e = ITensor(1.0)
   for n in 1:N
     e = e * ψ[n] * H[n] * ψdag[n]
   end
-  norm = ITensor(1)
+  norm = ITensor(1.0)
   ψdag = noprime.(ψdag, "Site")
   for n in 1:N
     norm = norm * ψ[n] * ψdag[n]

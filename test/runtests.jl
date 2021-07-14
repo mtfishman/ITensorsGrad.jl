@@ -1,216 +1,217 @@
-using FiniteDifferences # For testing gradients
+using ChainRulesCore
+using ChainRulesTestUtils
+using FiniteDifferences
 using ITensors
+using ITensors.NDTensors
 using ITensorsGrad
-using LinearAlgebra
+using Random
 using Test
 using Zygote
 
-@testset "Zygote ITensors" begin
-  T(β) = [exp(β) sin(β)
-          β^2 cos(β)]
-  A(β, i = Index(2, "i")) = itensor(T(β), i', dag(i))
-  β = 1.2
+using Zygote: ZygoteRuleConfig
 
-  @testset "Contraction" begin
-    ##############################################
-    # BROKEN TESTS
-    #
+#
+# ITensor extensions
+#
 
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β))
-    Zit = function (β)
-      i = Index(2, "i")
-      return (dag(δ(i'', dag(i))) * A(β, i') * A(β, i))[]
-    end
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
+#
+# For ITensor compatibility with FiniteDifferences
+#
 
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(Aᵦ', 2 => 0) * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(prime(Aᵦ), 2 => 0) * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (swapprime(Aᵦ, 0 => 1) * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β) * T(β))
-    Zit = function (β)
-      i = Index(2, "i")
-      return (dag(δ(i''', dag(i))) * A(β, i'') * A(β, i') * A(β, i))[]
-    end
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result
-    Z = β -> tr(T(β) * T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(Aᵦ'', 3 => 0) * Aᵦ' * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    # XXX this gives the wrong result, the version with ' works
-    Z = β -> tr(T(β) * T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(prime(Aᵦ, 2), 3 => 0) * prime(Aᵦ) * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-
-    #
-    # XXX: adjoint of tr(::ITensor) not working,
-    # results in `nothing`. Maybe it is too complicated
-    # for Zygote.
-    #
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); tr(Aᵦ' * Aᵦ; plev = 0 => 2))
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); tr(prime(Aᵦ) * Aᵦ; plev = 0 => 2))
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); tr(Aᵦ' * Aᵦ; plev = 0 => 2))
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); tr(prime(Aᵦ) * Aᵦ; plev = 0 => 2))
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); tr(product(Aᵦ, Aᵦ)))
-    @test Z(β) ≈ Zit(β)
-    @test_broken Z'(β) ≈ Zit'(β)
-
-
-
-
-
-
-    ##############################################
-    Z = β -> (T(β) * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (Aᵦ' * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (T(β) * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (prime(Aᵦ) * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(Aᵦ' * Aᵦ, 2 => 1) * dag(δ(inds(Aᵦ))))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (mapprime(prime(Aᵦ) * Aᵦ, 2 => 1) * dag(δ(inds(Aᵦ))))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (Aᵦ' * Aᵦ * dag(δ(mapprime(inds(Aᵦ), 1 => 2))))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β) * T(β))
-    Zit = β -> (Aᵦ = A(β); (prime(Aᵦ) * Aᵦ * dag(δ(mapprime(inds(Aᵦ), 1 => 2))))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (T(β) + 2 * T(β) * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (mapprime(Aᵦ, 1 => 2) + 2 * Aᵦ' * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (2 * T(β) * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (2 * Aᵦ' * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (2 * T(β) * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (2 * prime(Aᵦ) * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> T(β)[1, 1]
-    Zit = β -> swapprime(A(β), 0 => 1)[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (T(β) * T(β))[1, 1]
-    Zit = β -> (i = Index(2); (A(β, i') * A(β, i))[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> T(β)[1, 1]
-    Zit = β -> A(β)[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> T(β)[1, 1]
-    Zit = β -> A(β)'[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> T(β)[1, 1]^2 + T(β)[2, 1]^2
-    Zit = β -> (Aᵦ = A(β); (i′, i) = inds(Aᵦ); Aᵦ[i′=>1, i=>1]^2 + Aᵦ[i′=>2, i=>1]^2)
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (3 * T(β) * T(β))[1, 1]
-    Zit = β -> (i = Index(2, "i"); (3 * A(β, i') * A(β, i))[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (T(β) * 3)[1, 1]
-    Zit = β -> (A(β) * 3)[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (T(β) + 2 * T(β))[1, 1]
-    Zit = β -> (Aᵦ = A(β); (Aᵦ + 2 * Aᵦ)[1, 1])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β))
-    Zit = β -> (Aᵦ = A(β); (Aᵦ * dag(δ(inds(Aᵦ))))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β)' * T(β))
-    Zit = β -> (Aᵦ = A(β); (Aᵦ * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(2 * T(β)' * T(β))
-    Zit = β -> (Aᵦ = A(β); (2 * Aᵦ * Aᵦ)[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> (2 * T(β))[1, 1]
-    Zit = β -> (2 * A(β))[1, 1]
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
-
-    Z = β -> tr(T(β)' * T(β))
-    Zit = β -> (Aᵦ = A(β); (Aᵦ * dag(Aᵦ))[])
-    @test Z(β) ≈ Zit(β)
-    @test Z'(β) ≈ Zit'(β)
+function FiniteDifferences.to_vec(A::ITensor)
+  # TODO: generalize to sparse tensors
+  # TODO: define `itensor([1.0])` as well
+  # as `itensor([1.0], ())` to help with generic code.
+  function vec_to_ITensor(x)
+    return isempty(inds(A)) ? ITensor(x[]) : itensor(x, inds(A))
   end
+  return vec(array(A)), vec_to_ITensor
 end
 
+function FiniteDifferences.to_vec(x::Index)
+  return (Bool[], _ -> x)
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::ITensor)
+  # TODO: generalize to sparse tensors
+  return isempty(inds(A)) ? ITensor(randn(eltype(A))) : randomITensor(eltype(A), inds(A))
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::Tensor)
+  # TODO: generalize to sparse tensors
+  return randomTensor(eltype(A), inds(A))
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, x::Index)
+  return NoTangent()
+end
+
+#
+# For ITensor compatibility with ChainRulesTestUtils
+#
+
+function ChainRulesTestUtils.test_approx(
+  actual::ITensor, expected::ITensor, msg=""; kwargs...
+)
+  ChainRulesTestUtils.@test_msg msg isapprox(actual, expected; kwargs...)
+end
+
+function ChainRulesTestUtils.test_approx(
+  actual::ITensor, expected::Number, msg=""; kwargs...
+)
+  ChainRulesTestUtils.@test_msg msg isapprox(actual[], expected; kwargs...)
+end
+
+function ChainRulesTestUtils.test_approx(
+  actual::Number, expected::ITensor, msg=""; kwargs...
+)
+  ChainRulesTestUtils.@test_msg msg isapprox(actual, expected[]; kwargs...)
+end
+
+@testset "ITensorsGrad.jl" begin
+  i = Index(2)
+  A = randomITensor(i', dag(i))
+  B = randomITensor(i', dag(i))
+  C = ITensor(3.4)
+
+  test_rrule(getindex, ITensor(3.4); check_inferred=false)
+  test_rrule(getindex, A, 1, 2; check_inferred=false)
+  test_rrule(*, A', A; check_inferred=false)
+  test_rrule(*, 3.2, A; check_inferred=false)
+  test_rrule(*, A, 4.3; check_inferred=false)
+  test_rrule(+, A, B; check_inferred=false)
+  test_rrule(prime, A; check_inferred=false)
+  test_rrule(prime, A, 2; check_inferred=false)
+  test_rrule(addtags, A, "i"; check_inferred=false)
+  test_rrule(settags, A, "x,y"; check_inferred=false)
+  # XXX: broken with some ambiguity error in ChainRulesTestUtils
+  #test_rrule(delta, (i', i); check_inferred=false)
+  test_rrule(itensor, randn(2, 2), i', i; check_inferred=false)
+  test_rrule(ITensor, randn(2, 2), i', i; check_inferred=false)
+  test_rrule(ITensor, 2.3; check_inferred=false)
+  test_rrule(dag, A; check_inferred=false)
+
+  f = x -> sin(scalar(x)^3)
+  args = (C,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> sin(x[]^3)
+  args = (C,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = adjoint
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = (x, y) -> (x * y)[1, 1]
+  args = (A', A)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> prime(x, 2)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> x'[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> addtags(x, "x")[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x' * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (prime(x) * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> ((x'' * x') * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x'' * (x' * x))[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = (x, y, z) -> (x * y * z)[1, 1]
+  args = (A'', A', A)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x'' * x' * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x''' * x'' * x' * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x''' * x'' * x' * x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = (x, y) -> (x + y)[1, 1]
+  args = (A, B)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x + x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (2x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x + 2x)[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x + 2 * mapprime(x' * x, 2 => 1))[1, 1]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = (x, y) -> (x * y)[]
+  args = (A, δ(dag(inds(A))))
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x * x)[]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x * δ(dag(inds(x))))[]
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = function (x)
+    y = x' * x
+    tr = δ(dag(inds(y)))
+    return (y * tr)[]
+  end
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = function (x)
+    y = x'' * x' * x
+    tr = δ(dag(inds(y)))
+    return (y * tr)[]
+  end
+  args = (A,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x^2 * δ((i', i)))[1, 1]
+  args = (6.2,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> (x^2 * δ(i', i))[1, 1]
+  args = (5.2,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> itensor([x^2 x; x^3 x^4], i', i)
+  args = (2.54,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> ITensor([x^2 x; x^3 x^4], i', i)
+  args = (2.1,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = x -> ITensor(x)
+  args = (2.12,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = function (x)
+    j = Index(2)
+    T = itensor([x^2 sin(x); x^2 exp(-2x)], j', dag(j))
+    return real((dag(T) * T)[])
+  end
+  args = (2.8,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  args = (2.8 + 3.1im,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = function f(x)
+    j = Index(2)
+    v = itensor([exp(-3.2x), cos(2x^2)], j)
+    T = itensor([x^2 sin(x); x^2 exp(-2x)], j', dag(j))
+    return real((dag(v') * T * v)[])
+  end
+  args = (2.8,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  args = (2.8 + 3.1im,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+  f = function (x)
+    j = Index(2)
+    return real((x^3 * ITensor([sin(x) exp(-2x); 3x^3 x+x^2], j', dag(j)))[1, 1])
+  end
+  args = (3.4 + 2.3im,)
+  test_rrule(ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false)
+end
