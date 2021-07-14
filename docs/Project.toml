@@ -1,3 +1,5 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-ITensorsGrad = "79b97fc6-f224-48a6-bc79-3a561f8ff86d"
+
+[compat]
+Documenter = "0.27"
