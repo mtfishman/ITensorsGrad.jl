@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = ITensorNetworkAD
+CurrentModule = ITensorsGrad
 ```
 
-# ITensorNetworkAD
+# ITensorsGrad
 
-Documentation for [ITensorNetworkAD](https://github.com/ITensor/ITensorNetworkAD.jl).
+Documentation for [ITensorsGrad](https://github.com/mtfishman/ITensorsGrad.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [ITensorNetworkAD]
+Modules = [ITensorsGrad]
 ```
