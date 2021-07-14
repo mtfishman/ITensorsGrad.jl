@@ -9,11 +9,11 @@ CUDA.allowscalar(true)
 
 seed!(1234)
 
-gpu = cu
-#gpu = identity
+device = cu
+#device = identity
 
 i = Index(2, "i")
-A = randomITensor(i', i) |> gpu
+A = device(randomITensor(i', i))
 
 function f(A)
   return (A * A)[]
@@ -21,4 +21,3 @@ end
 
 @show f(A)
 dA = @show f'(A)
-
