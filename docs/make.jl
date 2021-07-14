@@ -1,9 +1,7 @@
 using ITensorsGrad
 using Documenter
 
-DocMeta.setdocmeta!(
-  ITensorsGrad, :DocTestSetup, :(using ITensorsGrad); recursive=true
-)
+DocMeta.setdocmeta!(ITensorsGrad, :DocTestSetup, :(using ITensorsGrad); recursive=true)
 
 makedocs(;
   modules=[ITensorsGrad],

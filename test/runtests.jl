@@ -112,7 +112,10 @@ end
     test_rrule(removetags, A, "i"; check_inferred=false)
     test_rrule(replacetags, A, "i" => "j"; check_inferred=false)
     test_rrule(
-      swaptags, randomITensor(Index(2, "i"), Index(2, "j")), "i" => "j"; check_inferred=false
+      swaptags,
+      randomITensor(Index(2, "i"), Index(2, "j")),
+      "i" => "j";
+      check_inferred=false,
     )
     test_rrule(replaceind, A, i' => sim(i); check_inferred=false)
     test_rrule(replaceinds, A, (i, i') => (sim(i), sim(i)); check_inferred=false)
@@ -259,9 +262,9 @@ end
     s = siteinds("S=1/2", N; conserve_qns=true)
     os = OpSum()
     for n in 1:(N - 1)
-      os .+= 0.5, "S+", n, "S-", n+1
-      os .+= 0.5, "S-", n, "S+", n+1
-      os .+= "Sz", n, "Sz", n+1
+      os .+= 0.5, "S+", n, "S-", n + 1
+      os .+= 0.5, "S-", n, "S+", n + 1
+      os .+= "Sz", n, "Sz", n + 1
     end
     Hmpo = MPO(os, s)
     ψ₀mps = randomMPS(s, n -> isodd(n) ? "↑" : "↓")
@@ -275,7 +278,9 @@ end
     E(ψ::ITensor) = E(H, ψ)
     ∇E(ψ::ITensor) = E'(ψ)
     fg(ψ::ITensor) = (E(ψ), ∇E(ψ))
-    linesearch = HagerZhangLineSearch(; c₁=.1, c₂=.9, ϵ=1e-6, θ=1/2, γ=2/3, ρ=5., verbosity=0)
+    linesearch = HagerZhangLineSearch(;
+      c₁=0.1, c₂=0.9, ϵ=1e-6, θ=1 / 2, γ=2 / 3, ρ=5.0, verbosity=0
+    )
     algorithm = LBFGS(3; maxiter=30, gradtol=1e-8, linesearch=linesearch)
     ψ, fψ, gψ, numfg, normgradhistory = optimize(fg, ψ₀, algorithm)
     D, _ = eigen(H; ishermitian=true)
@@ -288,9 +293,9 @@ end
     s = siteinds("S=1/2", N; conserve_qns=true)
     os = OpSum()
     for n in 1:(N - 1)
-      os .+= 0.5, "S+", n, "S-", n+1
-      os .+= 0.5, "S-", n, "S+", n+1
-      os .+= "Sz", n, "Sz", n+1
+      os .+= 0.5, "S+", n, "S-", n + 1
+      os .+= 0.5, "S-", n, "S+", n + 1
+      os .+= "Sz", n, "Sz", n + 1
     end
     Hmpo = MPO(os, s)
     ψ₀mps = randomMPS(s, n -> isodd(n) ? "↑" : "↓"; linkdims=χ)
@@ -314,7 +319,7 @@ end
     E(ψ) = E(H, ψ)
     ∇E(ψ) = E'(ψ)
     fg(ψ) = (E(ψ), ∇E(ψ))
-    linesearch = HagerZhangLineSearch(; c₁=.1, c₂=.9, ϵ=1e-6, θ=1/2, γ=2/3, ρ=5.)
+    linesearch = HagerZhangLineSearch(; c₁=0.1, c₂=0.9, ϵ=1e-6, θ=1 / 2, γ=2 / 3, ρ=5.0)
     algorithm = LBFGS(5; maxiter=100, gradtol=1e-8, linesearch=linesearch, verbosity=0)
     ψ, fψ, gψ, numfg, normgradhistory = optimize(fg, ψ₀, algorithm)
     sweeps = Sweeps(5)
