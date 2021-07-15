@@ -10,14 +10,15 @@ CUDA.allowscalar(true)
 seed!(1234)
 
 device = cu
-#device = identity
+#device = cpu
 
 i = Index(2, "i")
-A = device(randomITensor(i', i))
+A = device(randomITensor(i', dag(i)))
 
 function f(A)
-  return (A * A)[]
+  return (dag(A) * A)[]
 end
 
 @show f(A)
 dA = @show f'(A)
+
