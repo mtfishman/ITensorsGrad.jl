@@ -21,4 +21,3 @@ end
 
 @show f(A)
 dA = @show f'(A)
-
