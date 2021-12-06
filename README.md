@@ -1,3 +1,8 @@
+> ⚠️ **INFO: This repository is deprecated**
+> 
+> The functionality of `ITensorsGrad` has been moved into the monorepo at [ITensors.jl](https://github.com/ITensor/ITensors.jl).
+> It is loaded by default when the `ITensors` package is imported.
+
 # ITensorsGrad
 
 This extends the `ITensors.jl` library to make operations involving ITensors differentiable.
